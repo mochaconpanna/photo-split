@@ -730,12 +730,10 @@ function createSplitGrid() {
 function onCellClick(i) {
   const cell=st.splitCells[i];
   if(!cell.img) {
-    // 빈 셀 → 마우스(데스크탑)용: 셀 안의 file input을 찾아 클릭
-    const div=document.querySelector(`.split-cell[data-idx="${i}"]`);
-    const fi=div&&div.querySelector('input[type=file]');
-    if(fi){fi.value='';fi.click();}
+    // 빈 셀: cell-empty 안의 file input이 탭을 직접 처리하므로 여기선 아무것도 안 함
+    // (fi.click() 호출 시 iOS에서 파일 피커가 이중으로 열려 충돌)
+    return;
   } else {
-    // 사진 있는 셀 → 선택/해제
     if(st.splitSelected===i) deselectCell();
     else selectCell(i);
   }
