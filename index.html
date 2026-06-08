@@ -1139,8 +1139,8 @@ async function doPrint() {
   // iOS: Web Share API로 이미지 공유 → 사진 저장 / Epson iPrint 등 선택
   if(navigator.share){
     try{
-      const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.95));
-      const file=new File([blob],'사진분할.jpg',{type:'image/jpeg'});
+      const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
+      const file=new File([blob],'사진분할.png',{type:'image/png'});
       await navigator.share({files:[file],title:'사진분할'});
       closeSheet('print'); return;
     } catch(err){
@@ -1152,7 +1152,7 @@ async function doPrint() {
   // 데스크탑 폴백: 새 창에서 window.print()
   const ps=PAPER_SIZES[paperKey];
   const fitMode=document.getElementById('fit-mode').value;
-  const dataUrl=canvas.toDataURL('image/jpeg',0.95);
+  const dataUrl=canvas.toDataURL('image/png');
   let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     @page{size:${ps};margin:6mm;}
     body{margin:0;padding:0;}
