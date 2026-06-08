@@ -890,8 +890,11 @@ function endCellTouch(){}
 // ════════════════════════════════════════════════
 function renderSplitFinal(paperKey) {
   const {cols,rows}=st.splitLayout;
-  const gap=st.splitGap;
   const px=PAPER_PX[paperKey||'a4'];
+  // 갭을 화면 픽셀이 아닌 인쇄 해상도 기준으로 스케일
+  const wrap=document.getElementById('split-stage-wrap');
+  const screenW=wrap?wrap.clientWidth:375;
+  const gap=Math.round(st.splitGap*(px.w/screenW));
   const canvas=document.createElement('canvas');
   canvas.width=px.w; canvas.height=px.h;
   const ctx=canvas.getContext('2d');
@@ -1273,7 +1276,10 @@ async function loadDraft(id) {
     document.querySelectorAll('.layout-chip').forEach(el=>{
       el.classList.toggle('active', el.dataset.label===st.splitLayout.label);
     });
-    createSplitGrid(); // 빈 그리드 먼저
+    // splitMode 먼저 전환 후 레이아웃 안정화 대기 (컨테이너 크기 정확히 측정하기 위해)
+    switchMode('split');
+    await new Promise(r=>setTimeout(r,80));
+    createSplitGrid(); // 빈 그리드 (이제 wrap이 보이므로 올바른 크기)
     // 이미지 복원
     for(let i=0;i<draft.cellsData.length&&i<st.splitCells.length;i++){
       const cd=draft.cellsData[i];
@@ -1287,7 +1293,6 @@ async function loadDraft(id) {
         drawRotated(cell.canvas,img,cell.rotation,cell.scale,cell.panX,cell.panY);
       }
     }
-    switchMode('split');
   } else if(draft.mode==='collage'){
     // 콜라주 복원
     document.getElementById('collage-stage').innerHTML='';
