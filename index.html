@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="사진분할">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="manifest" href="./manifest.json">
 <title>사진분할</title>
 <style>
 :root{
@@ -1143,7 +1145,9 @@ async function doPrint() {
   if(navigator.share){
     try{
       const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
-      const file=new File([blob],'사진분할.png',{type:'image/png'});
+      const sizeMB=(blob.size/1024/1024).toFixed(1);
+      const file=new File([blob],`사진분할_${canvas.width}x${canvas.height}.png`,{type:'image/png'});
+      showToast(`${canvas.width}×${canvas.height}px · ${sizeMB}MB`);
       await navigator.share({files:[file],title:'사진분할'});
       closeSheet('print'); return;
     } catch(err){
