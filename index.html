@@ -86,13 +86,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;
 .coll-item{position:absolute;cursor:move;touch-action:none;}
 .coll-item canvas{width:100%;height:100%;display:block;}
 .coll-item.selected{outline:2.5px solid var(--blue);outline-offset:1px;}
-.rh{position:absolute;width:16px;height:16px;background:#fff;
-    border:2.5px solid var(--blue);border-radius:4px;display:none;z-index:10;}
+.rh{position:absolute;width:24px;height:24px;background:#fff;
+    border:2.5px solid var(--blue);border-radius:6px;display:none;z-index:10;touch-action:none;}
 .coll-item.selected .rh{display:block;}
-.rh.tl{top:-8px;left:-8px;cursor:nwse-resize;}
-.rh.tr{top:-8px;right:-8px;cursor:nesw-resize;}
-.rh.bl{bottom:-8px;left:-8px;cursor:nesw-resize;}
-.rh.br{bottom:-8px;right:-8px;cursor:nwse-resize;}
+.rh.tl{top:-12px;left:-12px;cursor:nwse-resize;}
+.rh.tr{top:-12px;right:-12px;cursor:nesw-resize;}
+.rh.bl{bottom:-12px;left:-12px;cursor:nesw-resize;}
+.rh.br{bottom:-12px;right:-12px;cursor:nwse-resize;}
 
 /* ── 임시저장 패널 ── */
 #panel-drafts{padding:16px;overflow-y:auto;justify-content:flex-start;align-items:stretch;}
@@ -439,11 +439,11 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
       </div>
     </div>
     <div style="background:#FFF5E0;border-radius:10px;padding:11px;margin-top:12px;font-size:13px;color:#7A5800;line-height:1.6;">
-      💡 <strong>엡손 L8050</strong>은 AirPrint 지원. 같은 Wi-Fi에 연결 시 자동 검색됩니다.
+      💡 아이폰에서는 이미지를 <strong>사진 앱에 저장</strong> 후 <strong>Epson iPrint 앱</strong>으로 인쇄하세요. Mac/PC에서는 AirPrint/직접 인쇄가 실행됩니다.
     </div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="closeSheet('print')">취소</button>
-      <button class="btn btn-orange" onclick="doPrint()">인쇄하기</button>
+      <button class="btn btn-orange" onclick="doPrint()">저장 / 인쇄</button>
     </div>
   </div>
 </div>
@@ -667,6 +667,19 @@ function createSplitGrid() {
       <circle cx="8.5" cy="8.5" r="1.5"/>
       <polyline points="21 15 16 10 5 21"/>
     </svg><span>탭하여 추가</span>`;
+    // iOS: programmatic .click() 막힘 → input을 셀 안에 직접 삽입
+    const cellFileInput=document.createElement('input');
+    cellFileInput.type='file'; cellFileInput.accept='image/*';
+    cellFileInput.style.cssText='position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;';
+    cellFileInput.addEventListener('change', async()=>{
+      if(!cellFileInput.files[0]) return;
+      const img=await fileToImg(cellFileInput.files[0]); if(!img) return;
+      cell.img=img; cell.rotation=0; cell.scale=1; cell.panX=0; cell.panY=0;
+      empty.style.display='none'; cell.canvas.style.display='block';
+      drawRotated(cell.canvas,img,0,1,0,0); selectCell(i);
+      cellFileInput.value='';
+    });
+    empty.appendChild(cellFileInput);
     div.appendChild(empty);
 
     // 캔버스 (사진 있을 때)
@@ -688,7 +701,7 @@ function createSplitGrid() {
     div.addEventListener('click', e=>{ if(!e._wasDrag) onCellClick(i); });
     div.addEventListener('mousedown', e=>{ if(e.button!==0||!cell.img)return; startCellMousePan(e,i); });
     div.addEventListener('wheel', e=>{ e.preventDefault(); if(cell.img)handleCellWheel(e,i); },{passive:false});
-    div.addEventListener('touchstart', e=>{ e.preventDefault(); if(cell.img)startCellTouch(e,i); else onCellClick(i); },{passive:false});
+    div.addEventListener('touchstart', e=>{ if(cell.img){e.preventDefault();startCellTouch(e,i);} /* 빈 셀은 preventDefault 안 함 → 안에 있는 file input이 탭 받음 */ },{passive:false});
     div.addEventListener('touchmove',  e=>{ e.preventDefault(); if(cell.img)moveCellTouch(e,i); },{passive:false});
     div.addEventListener('touchend',   e=>endCellTouch(e,i));
 
@@ -704,10 +717,10 @@ function createSplitGrid() {
 function onCellClick(i) {
   const cell=st.splitCells[i];
   if(!cell.img) {
-    // 빈 셀 → 파일 선택
-    st.pendingCellIdx=i;
-    document.getElementById('cell-file-input').value='';
-    document.getElementById('cell-file-input').click();
+    // 빈 셀 → 마우스(데스크탑)용: 셀 안의 file input을 찾아 클릭
+    const div=document.querySelector(`.split-cell[data-idx="${i}"]`);
+    const fi=div&&div.querySelector('input[type=file]');
+    if(fi){fi.value='';fi.click();}
   } else {
     // 사진 있는 셀 → 선택/해제
     if(st.splitSelected===i) deselectCell();
@@ -939,7 +952,11 @@ function buildCollItemEl(item) {
   drawRotated(canvas,item.img,item.rotation,1,item.panX,item.panY);
   ['tl','tr','bl','br'].forEach(pos=>{
     const h=document.createElement('div'); h.className='rh '+pos;
-    h.addEventListener('mousedown',e=>{e.stopPropagation();startCollResize(e,item,pos);});
+    h.addEventListener('mousedown',e=>{e.stopPropagation();startCollResize(e,item,pos,false);});
+    h.addEventListener('touchstart',e=>{
+      e.stopPropagation();e.preventDefault();
+      startCollResize({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY},item,pos,true);
+    },{passive:false});
     el.appendChild(h);
   });
   el.addEventListener('mousedown',e=>{
@@ -952,14 +969,40 @@ function buildCollItemEl(item) {
     else{item.panX-=e.deltaX;item.panY-=e.deltaY;}
     clampCollPan(item); redrawCollItem(item);
   },{passive:false});
+  // 터치 상태
+  let _td=null; // {sx,sy,ox,oy}
   el.addEventListener('touchstart',e=>{
     e.stopPropagation();
-    if(e.touches.length===1){selectCollItem(item.id);startCollDrag({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY,preventDefault:()=>{}},item);}
-    else if(e.touches.length===2){e.preventDefault();selectCollItem(item.id);_cit.sDist=pinchDist(e.touches);_cit.sMid=pinchMid(e.touches);_cit.sScale=item.photoScale||1;_cit.spX=item.panX;_cit.spY=item.panY;_cit.id=item.id;}
+    if(e.target.classList.contains('rh')) return;
+    if(e.touches.length===1){
+      e.preventDefault();
+      selectCollItem(item.id);
+      _td={sx:e.touches[0].clientX,sy:e.touches[0].clientY,ox:item.x,oy:item.y};
+    } else if(e.touches.length===2){
+      e.preventDefault(); _td=null;
+      selectCollItem(item.id);
+      _cit.sDist=pinchDist(e.touches);_cit.sMid=pinchMid(e.touches);
+      _cit.sScale=item.photoScale||1;_cit.spX=item.panX;_cit.spY=item.panY;_cit.id=item.id;
+    }
   },{passive:false});
   el.addEventListener('touchmove',e=>{
-    if(e.touches.length===2){e.preventDefault();const itm=st.collItems.find(i=>i.id===_cit.id);if(!itm)return;itm.photoScale=Math.max(1,Math.min(5,_cit.sScale*(pinchDist(e.touches)/_cit.sDist)));const mid=pinchMid(e.touches);itm.panX=_cit.spX+(mid.x-_cit.sMid.x);itm.panY=_cit.spY+(mid.y-_cit.sMid.y);clampCollPan(itm);redrawCollItem(itm);}
+    e.preventDefault();
+    if(e.touches.length===1&&_td){
+      // 1손가락 드래그
+      const dx=e.touches[0].clientX-_td.sx, dy=e.touches[0].clientY-_td.sy;
+      item.x=Math.max(0,Math.min(st.collStageW-item.w,_td.ox+dx));
+      item.y=Math.max(0,Math.min(st.collStageH-item.h,_td.oy+dy));
+      item.el.style.left=item.x+'px'; item.el.style.top=item.y+'px';
+    } else if(e.touches.length===2){
+      _td=null;
+      const itm=st.collItems.find(i=>i.id===_cit.id);if(!itm)return;
+      itm.photoScale=Math.max(1,Math.min(5,_cit.sScale*(pinchDist(e.touches)/_cit.sDist)));
+      const mid=pinchMid(e.touches);
+      itm.panX=_cit.spX+(mid.x-_cit.sMid.x);itm.panY=_cit.spY+(mid.y-_cit.sMid.y);
+      clampCollPan(itm);redrawCollItem(itm);
+    }
   },{passive:false});
+  el.addEventListener('touchend',()=>{_td=null;});
   return el;
 }
 const _cit={};
@@ -998,22 +1041,20 @@ function startCollDrag(e,item){
   document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
 }
 
-function startCollResize(e,item,pos){
+function startCollResize(e,item,pos,isTouch){
   // 컨테이너는 자유 비율로 리사이즈, 사진은 비율 유지하며 cover 채움
-  e.preventDefault(); selectCollItem(item.id);
+  if(!isTouch) e.preventDefault();
+  selectCollItem(item.id);
   const sx=e.clientX, sy=e.clientY;
   const orig={x:item.x,y:item.y,w:item.w,h:item.h};
   const MIN=60, stW=st.collStageW, stH=st.collStageH;
-  function mv(e){
-    const dx=e.clientX-sx, dy=e.clientY-sy;
+  function applyResize(cx,cy){
+    const dx=cx-sx, dy=cy-sy;
     let nW, nH, nX=orig.x, nY=orig.y;
-    // 가로
     if(pos==='br'||pos==='tr') nW=Math.max(MIN, orig.w+dx);
     else                        nW=Math.max(MIN, orig.w-dx);
-    // 세로
     if(pos==='br'||pos==='bl') nH=Math.max(MIN, orig.h+dy);
     else                        nH=Math.max(MIN, orig.h-dy);
-    // 좌/상단 핸들이면 위치도 이동
     if(pos==='bl'||pos==='tl') nX=orig.x+orig.w-nW;
     if(pos==='tr'||pos==='tl') nY=orig.y+orig.h-nH;
     nX=Math.max(0,nX); nY=Math.max(0,nY);
@@ -1024,8 +1065,15 @@ function startCollResize(e,item,pos){
     item.el.style.cssText+=`left:${nX}px;top:${nY}px;width:${nW}px;height:${nH}px;`;
     clampCollPan(item); redrawCollItem(item);
   }
-  function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);}
-  document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  if(isTouch){
+    function tmv(e){e.preventDefault();if(e.touches[0])applyResize(e.touches[0].clientX,e.touches[0].clientY);}
+    function tup(){document.removeEventListener('touchmove',tmv);document.removeEventListener('touchend',tup);}
+    document.addEventListener('touchmove',tmv,{passive:false}); document.addEventListener('touchend',tup);
+  } else {
+    function mv(e){applyResize(e.clientX,e.clientY);}
+    function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);}
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  }
 }
 
 function rotateCollItem(delta){
@@ -1071,14 +1119,29 @@ function renderCollageCanvas(paperKey) {
 // ════════════════════════════════════════════════
 function changeCopies(d){st.copies=Math.max(1,Math.min(20,st.copies+d));document.getElementById('copies-val').textContent=st.copies;}
 
-function doPrint() {
+async function doPrint() {
   deselectCollItem(); deselectCell();
   const paperKey=document.getElementById('paper-size').value;
   const canvas=st.printMode==='split'?renderSplitFinal(paperKey):renderCollageCanvas(paperKey);
   if(!canvas){showToast('인쇄할 이미지가 없습니다');return;}
+
+  // iOS: Web Share API로 이미지 공유 → 사진 저장 / Epson iPrint 등 선택
+  if(navigator.share){
+    try{
+      const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.95));
+      const file=new File([blob],'사진분할.jpg',{type:'image/jpeg'});
+      await navigator.share({files:[file],title:'사진분할'});
+      closeSheet('print'); return;
+    } catch(err){
+      if(err.name==='AbortError'){closeSheet('print');return;}
+      // share 실패 시 폴백으로 진행
+    }
+  }
+
+  // 데스크탑 폴백: 새 창에서 window.print()
   const ps=PAPER_SIZES[paperKey];
   const fitMode=document.getElementById('fit-mode').value;
-  const dataUrl=canvas.toDataURL('image/png');
+  const dataUrl=canvas.toDataURL('image/jpeg',0.95);
   let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     @page{size:${ps};margin:6mm;}
     body{margin:0;padding:0;}
@@ -1088,8 +1151,7 @@ function doPrint() {
   for(let c=0;c<st.copies;c++) html+=`<div class="page"><img src="${dataUrl}"></div>`;
   html+='</body></html>';
   const win=window.open('','_blank');
-  win.document.write(html); win.document.close();
-  win.onload=()=>{win.focus();win.print();};
+  if(win){win.document.write(html);win.document.close();win.onload=()=>{win.focus();win.print();};}
   closeSheet('print');
 }
 
@@ -1369,6 +1431,13 @@ function init() {
 }
 
 init();
+
+// 서비스 워커 등록 (오프라인 실행 지원)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
