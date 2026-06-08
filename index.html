@@ -626,6 +626,7 @@ function createSplitGrid() {
   let stW, stH;
   if(avW/avH > 210/297) { stH=avH; stW=Math.round(stH*210/297); }
   else { stW=avW; stH=Math.round(stW*297/210); }
+  st.splitStageW=stW; // renderSplitFinal에서 갭 스케일 계산에 사용
   const stage=document.getElementById('split-stage');
   stage.style.width=stW+'px'; stage.style.height=stH+'px';
 
@@ -891,9 +892,8 @@ function endCellTouch(){}
 function renderSplitFinal(paperKey) {
   const {cols,rows}=st.splitLayout;
   const px=PAPER_PX[paperKey||'a4'];
-  // 갭을 화면 픽셀이 아닌 인쇄 해상도 기준으로 스케일
-  const wrap=document.getElementById('split-stage-wrap');
-  const screenW=wrap?wrap.clientWidth:375;
+  // 갭을 화면 스테이지 너비 대비 비율로 인쇄 해상도에 맞게 스케일
+  const screenW=st.splitStageW||375;
   const gap=Math.round(st.splitGap*(px.w/screenW));
   const canvas=document.createElement('canvas');
   canvas.width=px.w; canvas.height=px.h;
@@ -1276,10 +1276,14 @@ async function loadDraft(id) {
     document.querySelectorAll('.layout-chip').forEach(el=>{
       el.classList.toggle('active', el.dataset.label===st.splitLayout.label);
     });
-    // splitMode 먼저 전환 후 레이아웃 안정화 대기 (컨테이너 크기 정확히 측정하기 위해)
+    // splitMode 먼저 전환 후 wrap.clientWidth > 0 이 될 때까지 대기
     switchMode('split');
-    await new Promise(r=>setTimeout(r,80));
-    createSplitGrid(); // 빈 그리드 (이제 wrap이 보이므로 올바른 크기)
+    for(let t=0;t<30;t++){
+      const w=document.getElementById('split-stage-wrap');
+      if(w&&w.clientWidth>0) break;
+      await new Promise(r=>setTimeout(r,30));
+    }
+    createSplitGrid(); // 빈 그리드 (이제 wrap이 올바른 크기)
     // 이미지 복원
     for(let i=0;i<draft.cellsData.length&&i<st.splitCells.length;i++){
       const cd=draft.cellsData[i];
