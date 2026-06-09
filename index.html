@@ -86,7 +86,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;
   position:relative;background:#fff;overflow:hidden;
   box-shadow:0 2px 16px rgba(0,0,0,.18);flex-shrink:0;
 }
-.coll-item{position:absolute;cursor:move;touch-action:none;}
+.coll-item{position:absolute;cursor:move;touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;}
 .coll-item canvas{width:100%;height:100%;display:block;}
 .coll-item.selected{outline:2.5px solid var(--blue);outline-offset:1px;}
 .coll-item.pan-mode{outline:2.5px solid var(--green) !important;}
@@ -1001,8 +1001,9 @@ function buildCollItemEl(item) {
     clampCollPan(item); redrawCollItem(item);
   },{passive:false});
   // 터치 상태
-  let _td=null; // {sx,sy,ox,oy} or {sx,sy,pX,pY,isPan:true}
+  let _td=null;
   let _lpTimer=null;
+  let _lpSx=0,_lpSy=0; // 롱프레스 시작 좌표
   el.addEventListener('touchstart',e=>{
     e.stopPropagation();
     if(e.target.classList.contains('rh')) return;
@@ -1010,24 +1011,26 @@ function buildCollItemEl(item) {
       e.preventDefault();
       selectCollItem(item.id);
       const tx=e.touches[0].clientX, ty=e.touches[0].clientY;
+      _lpSx=tx; _lpSy=ty;
       if(st.collPanMode===item.id){
-        // 이미 패닝 모드 — 사진 위치 조절
         _td={sx:tx,sy:ty,pX:item.panX||0,pY:item.panY||0,isPan:true};
-        // 롱프레스로 패닝 모드 종료
+        // 롱프레스로 패닝 모드 종료 (touchcancel 이후에도 동작하도록 타이머 유지)
+        if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}
         _lpTimer=setTimeout(()=>{
+          _lpTimer=null;
           st.collPanMode=null; el.classList.remove('pan-mode'); showToast('이동 모드');
-          _lpTimer=null;
-        },2000);
+          _td=null;
+        },1500);
       } else {
-        // 일반 모드 — 프레임 이동
         _td={sx:tx,sy:ty,ox:item.x,oy:item.y,isPan:false};
-        // 롱프레스로 패닝 모드 진입
+        if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}
         _lpTimer=setTimeout(()=>{
-          st.collPanMode=item.id; el.classList.add('pan-mode');
-          showToast('사진 위치 조절 모드 • 다시 꾹 눌러 종료');
-          _td={sx:tx,sy:ty,pX:item.panX||0,pY:item.panY||0,isPan:true};
           _lpTimer=null;
-        },2000);
+          st.collPanMode=item.id; el.classList.add('pan-mode');
+          showToast('사진 위치 조절 모드');
+          // 다음 터치부터 패닝으로 처리
+          _td=null;
+        },1500);
       }
     } else if(e.touches.length===2){
       e.preventDefault(); _td=null;
@@ -1041,14 +1044,14 @@ function buildCollItemEl(item) {
     e.preventDefault();
     if(e.touches.length===1&&_td){
       const dx=e.touches[0].clientX-_td.sx, dy=e.touches[0].clientY-_td.sy;
-      // 5px 이상 움직이면 롱프레스 취소
-      if(_lpTimer&&(Math.abs(dx)>5||Math.abs(dy)>5)){clearTimeout(_lpTimer);_lpTimer=null;}
+      // 15px 이상 움직이면 롱프레스 취소
+      if(_lpTimer&&(Math.abs(e.touches[0].clientX-_lpSx)>15||Math.abs(e.touches[0].clientY-_lpSy)>15)){
+        clearTimeout(_lpTimer);_lpTimer=null;
+      }
       if(_td.isPan){
-        // 사진 위치 조절
         item.panX=_td.pX+dx; item.panY=_td.pY+dy;
         clampCollPan(item); redrawCollItem(item);
       } else {
-        // 프레임 이동
         item.x=Math.max(0,Math.min(st.collStageW-item.w,_td.ox+dx));
         item.y=Math.max(0,Math.min(st.collStageH-item.h,_td.oy+dy));
         item.el.style.left=item.x+'px'; item.el.style.top=item.y+'px';
@@ -1062,10 +1065,10 @@ function buildCollItemEl(item) {
       clampCollPan(itm);redrawCollItem(itm);
     }
   },{passive:false});
-  el.addEventListener('touchend',()=>{
-    if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}
-    _td=null;
-  });
+  // touchend: 짧게 탭하면 롱프레스 취소, 길게 눌렀으면 이미 타이머 실행됨
+  el.addEventListener('touchend',()=>{ if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;} _td=null; });
+  // touchcancel: iOS가 시스템 제스처로 취소해도 타이머는 유지 (롱프레스 동작 보장)
+  el.addEventListener('touchcancel',()=>{ _td=null; /* _lpTimer 유지 */ });
   return el;
 }
 const _cit={};
