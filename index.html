@@ -1210,15 +1210,20 @@ async function doPrint() {
     }
   }
 
-  // 데스크탑 폴백: PNG 다운로드 → Preview에서 인쇄
+  // 데스크탑: 새 창 미리 열어 팝업 차단 우회 → 인쇄 다이얼로그 직접 표시
+  const ps=PAPER_SIZES[paperKey];
+  const win=window.open('','_blank'); // 팝업 허용 시점에 미리 열기
   canvas.toBlob(blob=>{
+    if(!blob){showToast('이미지 생성 실패');return;}
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=`사진분할_${canvas.width}x${canvas.height}.png`;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>@page{size:${ps};margin:0;}body{margin:0;padding:0;background:#fff;}
+img{display:block;width:100%;height:auto;page-break-inside:avoid;}</style>
+</head><body><img src="${url}" onload="window.print()"></body></html>`;
+    if(win){win.document.write(html);win.document.close();}
+    else{showToast('팝업이 차단됐어요 — 브라우저에서 팝업 허용 후 다시 시도하세요');}
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
   },'image/png');
-  showToast('PNG 저장됨 — Preview에서 열어 인쇄하세요');
   closeSheet('print');
 }
 
