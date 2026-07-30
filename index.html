@@ -1210,20 +1210,15 @@ async function doPrint() {
     }
   }
 
-  // 데스크탑 폴백: 새 창에서 window.print()
-  const ps=PAPER_SIZES[paperKey];
-  const fitMode=document.getElementById('fit-mode').value;
-  const dataUrl=canvas.toDataURL('image/png');
-  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-    @page{size:${ps};margin:6mm;}
-    body{margin:0;padding:0;}
-    .page{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;page-break-after:always;}
-    img{${fitMode==='fill'?'width:100%;height:100%;object-fit:cover;':'max-width:100%;max-height:100%;object-fit:contain;'}}
-  </style></head><body>`;
-  for(let c=0;c<st.copies;c++) html+=`<div class="page"><img src="${dataUrl}"></div>`;
-  html+='</body></html>';
-  const win=window.open('','_blank');
-  if(win){win.document.write(html);win.document.close();win.onload=()=>{win.focus();win.print();};}
+  // 데스크탑 폴백: PNG 다운로드 → Preview에서 인쇄
+  canvas.toBlob(blob=>{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`사진분할_${canvas.width}x${canvas.height}.png`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+  },'image/png');
+  showToast('PNG 저장됨 — Preview에서 열어 인쇄하세요');
   closeSheet('print');
 }
 
