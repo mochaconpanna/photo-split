@@ -394,11 +394,18 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
 <div class="sheet-overlay" id="overlay-gap" onclick="closeSheet('gap')">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">셀 간격</div>
+    <div class="sheet-title">간격 설정</div>
+    <div style="font-size:13px;color:var(--sub);margin-bottom:4px;">셀 간격</div>
     <div class="slider-row">
       <input type="range" min="0" max="30" value="8" id="gap-slider"
              oninput="document.getElementById('gap-val').textContent=this.value+'px';st.splitGap=+this.value;createSplitGrid()">
       <span class="slider-val" id="gap-val">8px</span>
+    </div>
+    <div style="font-size:13px;color:var(--sub);margin-bottom:4px;margin-top:14px;">외곽 여백</div>
+    <div class="slider-row">
+      <input type="range" min="0" max="30" value="0" id="outer-slider"
+             oninput="document.getElementById('outer-val').textContent=this.value+'px';st.splitOuter=+this.value;createSplitGrid()">
+      <span class="slider-val" id="outer-val">0px</span>
     </div>
     <div class="btn-row"><button class="btn btn-gray" onclick="closeSheet('gap')">완료</button></div>
   </div>
@@ -505,6 +512,7 @@ const st = {
   splitLayout: LAYOUTS[5], // 2×4 기본
   splitCells: [],   // [{img|null, rotation, scale, panX, panY, canvas}]
   splitGap: 8,
+  splitOuter: 0,
   splitBg: '#ffffff',
   splitSelected: -1,
   pendingCellIdx: -1,  // 빈 셀 클릭 시 어느 셀에 로드할지
@@ -635,6 +643,7 @@ function createSplitGrid() {
   const {cols, rows}=st.splitLayout;
   const total=cols*rows;
   const gap=st.splitGap;
+  const outer=st.splitOuter;
 
   // 스테이지 크기: main 영역에 A4 비율로 맞춤
   const wrap=document.getElementById('split-stage-wrap');
@@ -651,11 +660,11 @@ function createSplitGrid() {
   grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
   grid.style.gridTemplateRows=`repeat(${rows},1fr)`;
   grid.style.gap=gap+'px';
-  grid.style.padding=gap+'px';
+  grid.style.padding=outer+'px';
   grid.innerHTML='';
 
-  const cellW=(stW-gap*(cols+1))/cols;
-  const cellH=(stH-gap*(rows+1))/rows;
+  const cellW=(stW-2*outer-gap*(cols-1))/cols;
+  const cellH=(stH-2*outer-gap*(rows-1))/rows;
 
   // 기존 셀 수 유지 (사진 데이터 보존)
   const prevCells=[...st.splitCells];
@@ -911,17 +920,19 @@ function renderSplitFinal(paperKey) {
   const px=PAPER_PX[paperKey||'a4'];
   // 갭을 화면 스테이지 너비 대비 비율로 인쇄 해상도에 맞게 스케일
   const screenW=st.splitStageW||375;
-  const gap=Math.round(st.splitGap*(px.w/screenW));
+  const scale=px.w/screenW;
+  const gap=Math.round(st.splitGap*scale);
+  const outer=Math.round(st.splitOuter*scale);
   const canvas=document.createElement('canvas');
   canvas.width=px.w; canvas.height=px.h;
   const ctx=canvas.getContext('2d');
   ctx.fillStyle=st.splitBg; ctx.fillRect(0,0,px.w,px.h);
-  const cellW=(px.w-gap*(cols+1))/cols;
-  const cellH=(px.h-gap*(rows+1))/rows;
+  const cellW=(px.w-2*outer-gap*(cols-1))/cols;
+  const cellH=(px.h-2*outer-gap*(rows-1))/rows;
   st.splitCells.forEach((cell,i)=>{
     if(!cell.img) return;
     const col=i%cols, row=Math.floor(i/cols);
-    const x=gap+col*(cellW+gap), y=gap+row*(cellH+gap);
+    const x=outer+col*(cellW+gap), y=outer+row*(cellH+gap);
     const panScale=cellW/cell.canvas.width;
     ctx.save();
     ctx.beginPath(); ctx.rect(x,y,cellW,cellH); ctx.clip();
@@ -1310,6 +1321,7 @@ async function saveDraft() {
     thumb,
     splitLayout: st.splitLayout,
     splitGap: st.splitGap,
+    splitOuter: st.splitOuter,
     splitBg: st.splitBg,
     cellsData,
     collBg: st.collBg,
@@ -1332,9 +1344,12 @@ async function loadDraft(id) {
   if(draft.mode==='split'){
     st.splitLayout=draft.splitLayout||LAYOUTS[8];
     st.splitGap=draft.splitGap||8;
+    st.splitOuter=draft.splitOuter||0;
     st.splitBg=draft.splitBg||'#ffffff';
     document.getElementById('gap-slider').value=st.splitGap;
     document.getElementById('gap-val').textContent=st.splitGap+'px';
+    document.getElementById('outer-slider').value=st.splitOuter;
+    document.getElementById('outer-val').textContent=st.splitOuter+'px';
     // 격자 칩 업데이트
     document.querySelectorAll('.layout-chip').forEach(el=>{
       el.classList.toggle('active', el.dataset.label===st.splitLayout.label);
