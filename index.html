@@ -262,6 +262,12 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
         <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
       </svg>임시저장
     </button>
+    <button class="bb-btn danger" onclick="clearAllSplit()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+      </svg>전체삭제
+    </button>
     <button class="bb-btn warn" onclick="openSheet('print')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="6 9 6 2 18 2 18 9"/>
@@ -327,6 +333,12 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
         <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
         <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
       </svg>임시저장
+    </button>
+    <button class="bb-btn danger" onclick="clearAllColl()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+      </svg>전체삭제
     </button>
     <button class="bb-btn warn" onclick="openSheet('print')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -790,6 +802,18 @@ function deleteCellPhoto() {
   ctx.clearRect(0,0,cell.canvas.width,cell.canvas.height);
   deselectCell();
 }
+function clearAllSplit() {
+  if(!st.splitCells.some(c=>c.img)) return;
+  if(!confirm('모든 사진을 삭제하시겠습니까?')) return;
+  deselectCell();
+  st.splitCells.forEach((cell,i)=>{
+    if(!cell.img) return;
+    cell.img=null; cell.rotation=0; cell.scale=1; cell.panX=0; cell.panY=0;
+    const div=document.querySelector(`.split-cell[data-idx="${i}"]`);
+    if(div){div.querySelector('.cell-empty').style.display='';cell.canvas.style.display='none';const ctx=cell.canvas.getContext('2d');ctx.clearRect(0,0,cell.canvas.width,cell.canvas.height);}
+  });
+  showToast('전체 삭제 완료');
+}
 
 // ════════════════════════════════════════════════
 //  분할 – 파일 선택 콜백
@@ -1171,6 +1195,14 @@ function rotateCollItem(delta){
 function collItemToFront(){const item=getSelColl();if(!item)return;const mx=Math.max(...st.collItems.map(i=>parseInt(i.el.style.zIndex)||0));item.el.style.zIndex=mx+1;}
 function collItemToBack(){const item=getSelColl();if(!item)return;const mn=Math.min(...st.collItems.map(i=>parseInt(i.el.style.zIndex)||0));item.el.style.zIndex=Math.max(0,mn-1);}
 function deleteCollItem(){const item=getSelColl();if(!item)return;item.el.remove();st.collItems=st.collItems.filter(i=>i.id!==item.id);deselectCollItem();}
+function clearAllColl() {
+  if(!st.collItems.length) return;
+  if(!confirm('모든 사진을 삭제하시겠습니까?')) return;
+  deselectCollItem();
+  st.collItems.forEach(item=>item.el.remove());
+  st.collItems=[];
+  showToast('전체 삭제 완료');
+}
 
 function renderCollageCanvas(paperKey) {
   let W,H;
