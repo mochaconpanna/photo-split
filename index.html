@@ -1210,19 +1210,26 @@ async function doPrint() {
     }
   }
 
-  // 데스크탑: Blob URL로 HTML 열기 (document.write 오프셋 버그 우회)
+  // 데스크탑: 현재 페이지에서 @media print로 직접 인쇄 (새 창 없음)
   const ps=PAPER_SIZES[paperKey];
   const dataUrl=canvas.toDataURL('image/png');
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>@page{size:${ps};margin:0;}*{margin:0;padding:0;}img{display:block;width:100%;}</style>
-<script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script>
-</head><body><img src="${dataUrl}"></body></html>`;
-  const blob=new Blob([html],{type:'text/html'});
-  const blobUrl=URL.createObjectURL(blob);
-  const win=window.open(blobUrl,'_blank');
-  if(!win) showToast('팝업이 차단됐어요 — 브라우저 주소창 옆 팝업 허용 클릭 후 다시 시도');
-  setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);
+  // 기존 프린트 요소 정리
+  ['_ps','_pd'].forEach(id=>{const el=document.getElementById(id);if(el)el.remove();});
+  // @page + @media print 스타일
+  const style=document.createElement('style');
+  style.id='_ps';
+  style.textContent=`@page{size:${ps};margin:0;}@media print{body>*{display:none!important;}#_pd{display:block!important;position:fixed;inset:0;margin:0;padding:0;}#_pd img{width:100%;height:100%;object-fit:contain;display:block;}}`;
+  document.head.appendChild(style);
+  // 프린트 이미지 div (화면엔 숨김)
+  const div=document.createElement('div');
+  div.id='_pd'; div.style.display='none';
+  div.innerHTML=`<img src="${dataUrl}">`;
+  document.body.appendChild(div);
+  // 인쇄 후 정리
+  const cleanup=()=>{style.remove();div.remove();window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
   closeSheet('print');
+  setTimeout(()=>window.print(),100);
 }
 
 // ════════════════════════════════════════════════

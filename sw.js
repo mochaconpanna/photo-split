@@ -1,4 +1,4 @@
-const CACHE = 'photo-split-v9';
+const CACHE = 'photo-split-v10';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
