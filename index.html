@@ -1210,21 +1210,22 @@ async function doPrint() {
     }
   }
 
-  // 데스크탑: 새 창 미리 열어 팝업 차단 우회 → 인쇄 다이얼로그 직접 표시
+  // 데스크탑: 동기 방식으로 팝업 차단 없이 인쇄 (toDataURL은 동기)
   const ps=PAPER_SIZES[paperKey];
-  const win=window.open('','_blank'); // 팝업 허용 시점에 미리 열기
-  canvas.toBlob(blob=>{
-    if(!blob){showToast('이미지 생성 실패');return;}
-    const url=URL.createObjectURL(blob);
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>@page{size:${ps};margin:0;}
-html,body{margin:0;padding:0;}
-img{width:100%;display:block;}</style>
-</head><body><img src="${url}" onload="window.print()"></body></html>`;
-    if(win){win.document.write(html);win.document.close();}
-    else{showToast('팝업이 차단됐어요 — 브라우저에서 팝업 허용 후 다시 시도하세요');}
-    setTimeout(()=>URL.revokeObjectURL(url),30000);
-  },'image/png');
+  const dataUrl=canvas.toDataURL('image/png');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+@page{size:${ps};margin:4mm;}
+*{margin:0;padding:0;}
+body{background:#fff;}
+img{display:block;width:100%;}
+</style></head><body>
+<img src="${dataUrl}">
+<script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+</body></html>`;
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+  else{showToast('팝업이 차단됐어요 — 브라우저 주소창 옆 팝업 허용 클릭 후 다시 시도');}
   closeSheet('print');
 }
 
