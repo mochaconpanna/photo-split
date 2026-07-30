@@ -1029,8 +1029,8 @@ function buildCollItemEl(item) {
           _lpTimer=null;
           st.collPanMode=item.id; el.classList.add('pan-mode');
           showToast('사진 위치 조절 모드');
-          // 다음 터치부터 패닝으로 처리
-          _td=null;
+          // 손가락이 아직 닿아 있으면 즉시 패닝 시작
+          _td={sx:_lpSx,sy:_lpSy,pX:item.panX||0,pY:item.panY||0,isPan:true};
         },1500);
       }
     } else if(e.touches.length===2){
@@ -1194,8 +1194,9 @@ async function doPrint() {
   const canvas=st.printMode==='split'?renderSplitFinal(paperKey):renderCollageCanvas(paperKey);
   if(!canvas){showToast('인쇄할 이미지가 없습니다');return;}
 
-  // iOS: Web Share API로 이미지 공유 → 사진 저장 / Epson iPrint 등 선택
-  if(navigator.share){
+  // 모바일에서만 Web Share API 사용 (데스크탑은 window.print())
+  const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if(isMobile && navigator.share){
     try{
       const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
       const sizeMB=(blob.size/1024/1024).toFixed(1);
