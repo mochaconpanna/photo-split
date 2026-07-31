@@ -1260,13 +1260,13 @@ function startCollDrag(e,item){
 }
 
 function startCollResize(e,item,pos,isTouch){
-  // 컨테이너는 자유 비율로 리사이즈, 사진은 비율 유지하며 cover 채움
   if(!isTouch) e.preventDefault();
   selectCollItem(item.id);
   const sx=e.clientX, sy=e.clientY;
   const orig={x:item.x,y:item.y,w:item.w,h:item.h};
-  const MIN=60, stW=st.collStageW, stH=st.collStageH;
-  function applyResize(cx,cy){
+  const isGrid=item.type==='grid';
+  const MIN=isGrid?80:60, stW=st.collStageW, stH=st.collStageH;
+  function apply(cx,cy){
     const dx=cx-sx, dy=cy-sy;
     let nW, nH, nX=orig.x, nY=orig.y;
     if(pos==='br'||pos==='tr') nW=Math.max(MIN, orig.w+dx);
@@ -1279,16 +1279,22 @@ function startCollResize(e,item,pos,isTouch){
     if(nX+nW>stW) nW=stW-nX;
     if(nY+nH>stH) nH=stH-nY;
     item.x=nX; item.y=nY; item.w=nW; item.h=nH;
-    item.canvas.width=Math.round(nW); item.canvas.height=Math.round(nH);
-    item.el.style.cssText+=`left:${nX}px;top:${nY}px;width:${nW}px;height:${nH}px;`;
-    clampCollPan(item); redrawCollItem(item);
+    if(isGrid){
+      item.canvas.width=Math.round(nW*2); item.canvas.height=Math.round(nH*2);
+      item.el.style.cssText=`left:${nX}px;top:${nY}px;width:${nW}px;height:${nH}px;z-index:${parseInt(item.el.style.zIndex)||1};`;
+      redrawCollGrid(item);
+    } else {
+      item.canvas.width=Math.round(nW); item.canvas.height=Math.round(nH);
+      item.el.style.cssText+=`left:${nX}px;top:${nY}px;width:${nW}px;height:${nH}px;`;
+      clampCollPan(item); redrawCollItem(item);
+    }
   }
   if(isTouch){
-    function tmv(e){e.preventDefault();if(e.touches[0])applyResize(e.touches[0].clientX,e.touches[0].clientY);}
+    function tmv(e){e.preventDefault();if(e.touches[0])apply(e.touches[0].clientX,e.touches[0].clientY);}
     function tup(){document.removeEventListener('touchmove',tmv);document.removeEventListener('touchend',tup);}
     document.addEventListener('touchmove',tmv,{passive:false}); document.addEventListener('touchend',tup);
   } else {
-    function mv(e){applyResize(e.clientX,e.clientY);}
+    function mv(e){apply(e.clientX,e.clientY);}
     function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);}
     document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
   }
@@ -1875,12 +1881,25 @@ function addGridCellPhoto(){
   fi.click();
 }
 function addGridCellPhotoFromBtn(){
-  // 빈 셀 중 첫번째 자동 선택
+  // 다중 선택 지원: 빈 셀부터 순서대로 채움
   const item=st.collItems.find(i=>i.id===st.collSelected); if(!item) return;
-  let idx=item.cells.findIndex(c=>!c.img);
-  if(idx<0) idx=0;
-  selectGridCell(item,idx);
-  addGridCellPhoto();
+  const fi=document.createElement('input');
+  fi.type='file'; fi.accept='image/*'; fi.multiple=true;
+  fi.onchange=async function(){
+    const files=Array.from(fi.files); if(!files.length) return;
+    // 첫 번째 빈 셀 인덱스부터 시작
+    let startIdx=item.cells.findIndex(c=>!c.img);
+    if(startIdx<0) startIdx=0;
+    for(let i=0;i<files.length;i++){
+      const cellIdx=(startIdx+i)%item.cells.length;
+      const img=await fileToImg(files[i]); if(!img) continue;
+      item.cells[cellIdx].img=img; item.cells[cellIdx].scale=1;
+      item.cells[cellIdx].panX=0; item.cells[cellIdx].panY=0;
+    }
+    selectGridCell(item,startIdx);
+    redrawCollGrid(item);
+  };
+  fi.click();
 }
 function zoomGridCell(delta){
   const item=st.collItems.find(i=>i.id===st.collSelected); if(!item) return;
@@ -1909,44 +1928,6 @@ function adjustGridGap(delta){
   redrawCollGrid(item);
 }
 
-// 리사이즈 후 그리드 캔버스 재생성 (startCollResize 오버라이드)
-const _origStartCollResize=startCollResize;
-function startCollResize(e,item,pos,isTouch){
-  if(item.type==='grid'){
-    if(!isTouch) e.preventDefault();
-    selectCollItem(item.id);
-    const sx=e.clientX,sy=e.clientY;
-    const orig={x:item.x,y:item.y,w:item.w,h:item.h};
-    const MIN=80,stW=st.collStageW,stH=st.collStageH;
-    function apply(cx,cy){
-      const dx=cx-sx,dy=cy-sy;
-      let nW,nH,nX=orig.x,nY=orig.y;
-      if(pos==='br'||pos==='tr') nW=Math.max(MIN,orig.w+dx);
-      else                        nW=Math.max(MIN,orig.w-dx);
-      if(pos==='br'||pos==='bl') nH=Math.max(MIN,orig.h+dy);
-      else                        nH=Math.max(MIN,orig.h-dy);
-      if(pos==='bl'||pos==='tl') nX=orig.x+orig.w-nW;
-      if(pos==='tr'||pos==='tl') nY=orig.y+orig.h-nH;
-      nX=Math.max(0,nX);nY=Math.max(0,nY);
-      if(nX+nW>stW)nW=stW-nX;if(nY+nH>stH)nH=stH-nY;
-      item.x=nX;item.y=nY;item.w=nW;item.h=nH;
-      item.canvas.width=Math.round(nW*2);item.canvas.height=Math.round(nH*2);
-      item.el.style.cssText=`left:${nX}px;top:${nY}px;width:${nW}px;height:${nH}px;z-index:${parseInt(item.el.style.zIndex)||1};`;
-      redrawCollGrid(item);
-    }
-    if(isTouch){
-      function tmv(e){e.preventDefault();if(e.touches[0])apply(e.touches[0].clientX,e.touches[0].clientY);}
-      function tup(){document.removeEventListener('touchmove',tmv);document.removeEventListener('touchend',tup);}
-      document.addEventListener('touchmove',tmv,{passive:false});document.addEventListener('touchend',tup);
-    } else {
-      function mv(e){apply(e.clientX,e.clientY);}
-      function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);}
-      document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
-    }
-  } else {
-    _origStartCollResize(e,item,pos,isTouch);
-  }
-}
 
 // ════════════════════════════════════════════════
 //  레이아웃 칩 생성
