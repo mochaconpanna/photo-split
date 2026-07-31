@@ -191,6 +191,11 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
 .btn-row{display:flex;gap:10px;margin-top:16px;}
 .btn-row .btn{flex:1;}
 
+/* 콜라주 드래그 앤 드롭 하이라이트 */
+#collage-stage.drag-over::after{
+  content:'';position:absolute;inset:0;border:3px dashed var(--blue);
+  border-radius:8px;background:rgba(0,122,255,.07);pointer-events:none;z-index:9999;
+}
 /* 알림 토스트 */
 #toast{
   position:fixed;bottom:calc(var(--botH) + 16px);left:50%;transform:translateX(-50%) translateY(10px);
@@ -2015,6 +2020,44 @@ function init() {
     st.collBg=e.target.value;
     document.getElementById('collage-stage').style.background=st.collBg;
     updateCollBgSwatches('__none__');
+  });
+
+  // 콜라주 스테이지 드래그 앤 드롭 (파인더에서 사진 끌어넣기)
+  const cstage = document.getElementById('collage-stage');
+  cstage.addEventListener('dragover', e=>{
+    e.preventDefault(); e.stopPropagation();
+    if([...e.dataTransfer.items].some(i=>i.kind==='file'&&i.type.startsWith('image/')))
+      cstage.classList.add('drag-over');
+  });
+  cstage.addEventListener('dragleave', e=>{
+    if(!cstage.contains(e.relatedTarget)) cstage.classList.remove('drag-over');
+  });
+  cstage.addEventListener('drop', async e=>{
+    e.preventDefault(); e.stopPropagation();
+    cstage.classList.remove('drag-over');
+    const files=[...e.dataTransfer.files].filter(f=>f.type.startsWith('image/'));
+    if(!files.length) return;
+    // 드롭 위치의 그리드 아이템 감지 → 있으면 빈 셀에 순서대로 채움
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const gridEl=el&&el.closest('.coll-item[data-id]');
+    const gridItem=gridEl&&st.collItems.find(i=>i.id===parseInt(gridEl.dataset.id)&&i.type==='grid');
+    if(gridItem){
+      let idx=gridItem.cells.findIndex(c=>!c.img);
+      if(idx<0) idx=0;
+      for(const file of files){
+        const img=await fileToImg(file); if(!img) continue;
+        gridItem.cells[idx].img=img; gridItem.cells[idx].scale=1;
+        gridItem.cells[idx].panX=0; gridItem.cells[idx].panY=0;
+        idx=(idx+1)%gridItem.cells.length;
+      }
+      selectCollItem(gridItem.id);
+      redrawCollGrid(gridItem);
+    } else {
+      for(const file of files){
+        const img=await fileToImg(file); if(!img) continue;
+        placeCollItem(img);
+      }
+    }
   });
 
   window.addEventListener('resize',()=>{
