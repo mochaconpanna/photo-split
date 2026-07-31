@@ -499,15 +499,15 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
     <div class="sheet-title">간격 설정</div>
     <div style="font-size:13px;color:var(--sub);margin-bottom:4px;">셀 간격</div>
     <div class="slider-row">
-      <input type="range" min="0" max="30" value="8" id="gap-slider"
+      <input type="range" min="0" max="30" value="3" id="gap-slider"
              oninput="document.getElementById('gap-val').textContent=this.value+'px';st.splitGap=+this.value;createSplitGrid()">
-      <span class="slider-val" id="gap-val">8px</span>
+      <span class="slider-val" id="gap-val">3px</span>
     </div>
     <div style="font-size:13px;color:var(--sub);margin-bottom:4px;margin-top:14px;">외곽 여백</div>
     <div class="slider-row">
-      <input type="range" min="0" max="30" value="0" id="outer-slider"
+      <input type="range" min="0" max="30" value="12" id="outer-slider"
              oninput="document.getElementById('outer-val').textContent=this.value+'px';st.splitOuter=+this.value;createSplitGrid()">
-      <span class="slider-val" id="outer-val">0px</span>
+      <span class="slider-val" id="outer-val">12px</span>
     </div>
     <div class="btn-row"><button class="btn btn-gray" onclick="closeSheet('gap')">완료</button></div>
   </div>
@@ -622,8 +622,8 @@ const st = {
   // 분할
   splitLayout: LAYOUTS[5], // 2×4 기본
   splitCells: [],   // [{img|null, rotation, scale, panX, panY, canvas}]
-  splitGap: 8,
-  splitOuter: 0,
+  splitGap: 3,
+  splitOuter: 12,
   splitBg: '#ffffff',
   splitSelected: -1,
   pendingCellIdx: -1,  // 빈 셀 클릭 시 어느 셀에 로드할지
