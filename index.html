@@ -1480,7 +1480,7 @@ async function saveDraft() {
       type:'grid', id:it.id, x:it.x, y:it.y, w:it.w, h:it.h,
       cols:it.cols, rows:it.rows, gap:it.gap,
       zIndex:parseInt(it.el.style.zIndex)||1,
-      cells:it.cells.map(c=>({scale:c.scale||1,panX:c.panX||0,panY:c.panY||0,imgSrc:c.img?c.img.src:null}))
+      cells:it.cells.map(c=>({scale:c.scale||1,panX:c.panX||0,panY:c.panY||0,rotation:c.rotation||0,imgSrc:c.img?c.img.src:null}))
     };
     return {
       src: it.img.src || null,
@@ -1565,13 +1565,14 @@ async function loadDraft(id) {
       if(cd.type==='grid'){
         const cells=await Promise.all((cd.cells||[]).map(async c=>{
           const img=c.imgSrc?await loadImage(c.imgSrc):null;
-          return {img,scale:c.scale||1,panX:c.panX||0,panY:c.panY||0};
+          return {img,scale:c.scale||1,panX:c.panX||0,panY:c.panY||0,rotation:c.rotation||0};
         }));
         const gridItem={id:cd.id||st.collNextId++,type:'grid',x:cd.x,y:cd.y,w:cd.w,h:cd.h,cols:cd.cols,rows:cd.rows,gap:cd.gap||4,cells,el:null,canvas:null};
         const el=buildCollGridEl(gridItem);gridItem.el=el;
         el.style.zIndex=cd.zIndex||1;
         document.getElementById('collage-stage').appendChild(el);
         st.collItems.push(gridItem);
+        gridItem.cells.forEach((_,i)=>clampGridCellPan(gridItem,i));
         redrawCollGrid(gridItem);
         if(gridItem.id>=st.collNextId)st.collNextId=gridItem.id+1;
         continue;
