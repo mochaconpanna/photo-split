@@ -441,6 +441,11 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
         <line x1="8" y1="12" x2="16" y2="12"/>
       </svg>사진추가
     </button>
+    <button class="bb-btn" onclick="rotateGridCell(90)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12a9 9 0 11-9-9h9"/><polyline points="21 3 21 9 15 9"/>
+      </svg>회전
+    </button>
     <button class="bb-btn" onclick="zoomGridCell(0.2)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -584,12 +589,12 @@ select{padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
 // ════════════════════════════════════════════════
 const LAYOUTS = [
   {label:'1×2', cols:1, rows:2},{label:'2×1', cols:2, rows:1},
+  {label:'1×3', cols:1, rows:3},{label:'3×1', cols:3, rows:1},
+  {label:'1×4', cols:1, rows:4},{label:'4×1', cols:4, rows:1},
   {label:'2×2', cols:2, rows:2},{label:'2×3', cols:2, rows:3},
   {label:'3×2', cols:3, rows:2},{label:'2×4', cols:2, rows:4},
   {label:'4×2', cols:4, rows:2},{label:'3×3', cols:3, rows:3},
-  {label:'3×4', cols:3, rows:4},{label:'3×5', cols:3, rows:5},
-  {label:'3×6', cols:3, rows:6},{label:'4×3', cols:4, rows:3},
-  {label:'4×4', cols:4, rows:4},
+  {label:'4×3', cols:4, rows:3},{label:'4×4', cols:4, rows:4},
 ];
 const PAPER_SIZES = {
   a4:'210mm 297mm', a5:'148mm 210mm', a6:'105mm 148mm',
@@ -1667,7 +1672,7 @@ function addCollGrid(layout){
   let w=Math.round(stW*0.75), h=Math.round(w/ratio);
   if(h>stH*0.75){h=Math.round(stH*0.75);w=Math.round(h*ratio);}
   const x=Math.round((stW-w)/2), y=Math.round((stH-h)/2);
-  const cells=Array.from({length:cols*rows},()=>({img:null,scale:1,panX:0,panY:0}));
+  const cells=Array.from({length:cols*rows},()=>({img:null,scale:1,panX:0,panY:0,rotation:0}));
   const id=st.collNextId++;
   const item={id,type:'grid',x,y,w,h,cols,rows,gap:4,cells,el:null,canvas:null};
   const el=buildCollGridEl(item);
@@ -1793,8 +1798,7 @@ function redrawCollGrid(item){
   const canvas=item.canvas;
   const cw=canvas.width, ch=canvas.height;
   const ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,cw,ch);
-  ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,0,cw,ch);
+  ctx.clearRect(0,0,cw,ch); // 간격은 투명 (콜라주 배경 비침)
   const {cols,rows,gap,cells}=item;
   const scaleX=cw/item.w, scaleY=ch/item.h;
   const gapX=gap*scaleX, gapY=gap*scaleY;
@@ -1804,18 +1808,19 @@ function redrawCollGrid(item){
     const col=i%cols, row=Math.floor(i/cols);
     const cx=col*(cellW+gapX), cy=row*(cellH+gapY);
     if(!cell.img){
-      ctx.fillStyle='#e8e8e8'; ctx.fillRect(cx,cy,cellW,cellH);
-      ctx.strokeStyle='#bbb'; ctx.lineWidth=1.5;
+      ctx.fillStyle='rgba(200,200,200,0.5)'; ctx.fillRect(cx,cy,cellW,cellH);
+      ctx.strokeStyle='#aaa'; ctx.lineWidth=1.5;
       const mx=cx+cellW/2, my=cy+cellH/2, len=Math.min(cellW,cellH)*0.2;
       ctx.beginPath();ctx.moveTo(mx-len,my);ctx.lineTo(mx+len,my);
       ctx.moveTo(mx,my-len);ctx.lineTo(mx,my+len);ctx.stroke();
     } else {
-      const sc=Math.max(cellW/cell.img.width,cellH/cell.img.height)*(cell.scale||1);
+      const rot=(cell.rotation||0)*Math.PI/180;
+      const isT=(cell.rotation===90||cell.rotation===270);
+      const sc=Math.max(isT?cellW/cell.img.height:cellW/cell.img.width,isT?cellH/cell.img.width:cellH/cell.img.height)*(cell.scale||1);
       ctx.save();ctx.beginPath();ctx.rect(cx,cy,cellW,cellH);ctx.clip();
-      ctx.drawImage(cell.img,
-        cx+cellW/2+(cell.panX||0)*scaleX-cell.img.width*sc/2,
-        cy+cellH/2+(cell.panY||0)*scaleY-cell.img.height*sc/2,
-        cell.img.width*sc, cell.img.height*sc);
+      ctx.translate(cx+cellW/2+(cell.panX||0)*scaleX, cy+cellH/2+(cell.panY||0)*scaleY);
+      ctx.rotate(rot);
+      ctx.drawImage(cell.img,-cell.img.width*sc/2,-cell.img.height*sc/2,cell.img.width*sc,cell.img.height*sc);
       ctx.restore();
     }
     // 선택된 셀 하이라이트
@@ -1831,9 +1836,10 @@ function clampGridCellPan(item,idx){
   const {cols,rows,gap,w,h}=item;
   const cellW=(w-gap*(cols-1))/cols;
   const cellH=(h-gap*(rows-1))/rows;
-  const sc=Math.max(cellW/cell.img.width,cellH/cell.img.height)*(cell.scale||1);
-  const mxX=Math.max(0,(cell.img.width*sc-cellW)/2);
-  const mxY=Math.max(0,(cell.img.height*sc-cellH)/2);
+  const isT=(cell.rotation===90||cell.rotation===270);
+  const sc=Math.max(isT?cellW/cell.img.height:cellW/cell.img.width,isT?cellH/cell.img.width:cellH/cell.img.height)*(cell.scale||1);
+  const mxX=Math.max(0,((isT?cell.img.height:cell.img.width)*sc-cellW)/2);
+  const mxY=Math.max(0,((isT?cell.img.width:cell.img.height)*sc-cellH)/2);
   cell.panX=Math.max(-mxX,Math.min(mxX,cell.panX||0));
   cell.panY=Math.max(-mxY,Math.min(mxY,cell.panY||0));
 }
@@ -1872,6 +1878,14 @@ function zoomGridCell(delta){
   const idx=st.collGridCell; if(idx<0) return;
   const cell=item.cells[idx]; if(!cell.img) return;
   cell.scale=Math.max(1,Math.min(5,(cell.scale||1)+delta));
+  clampGridCellPan(item,idx); redrawCollGrid(item);
+}
+function rotateGridCell(deg){
+  const item=st.collItems.find(i=>i.id===st.collSelected); if(!item) return;
+  const idx=st.collGridCell; if(idx<0) return;
+  const cell=item.cells[idx]; if(!cell.img) return;
+  cell.rotation=((cell.rotation||0)+deg+360)%360;
+  cell.panX=0; cell.panY=0;
   clampGridCellPan(item,idx); redrawCollGrid(item);
 }
 function deleteGridCellPhoto(){
