@@ -1719,8 +1719,8 @@ function buildCollGridEl(item){
   // 마우스 이벤트
   el.addEventListener('mousedown',e=>{
     if(e.target.classList.contains('rh')) return;
-    if(st.collSelected===item.id && st.collGridCell<0){
-      // 그리드 선택된 상태에서 셀 클릭
+    if(st.collSelected===item.id){
+      // 그리드 선택 중: 셀 클릭하면 해당 셀 선택
       const idx=hitTestGridCell(item,e.clientX,e.clientY);
       if(idx>=0){selectGridCell(item,idx);return;}
     }
@@ -1883,21 +1883,23 @@ function addGridCellPhoto(){
 function addGridCellPhotoFromBtn(){
   // 다중 선택 지원: 빈 셀부터 순서대로 채움
   const item=st.collItems.find(i=>i.id===st.collSelected); if(!item) return;
+  // 첫 번째 빈 셀 인덱스 미리 계산 + 즉시 선택 (피커 열기 전)
+  let startIdx=item.cells.findIndex(c=>!c.img);
+  if(startIdx<0) startIdx=0;
+  selectGridCell(item,startIdx);
   const fi=document.createElement('input');
   fi.type='file'; fi.accept='image/*'; fi.multiple=true;
   fi.onchange=async function(){
     const files=Array.from(fi.files); if(!files.length) return;
-    // 첫 번째 빈 셀 인덱스부터 시작
-    let startIdx=item.cells.findIndex(c=>!c.img);
-    if(startIdx<0) startIdx=0;
     for(let i=0;i<files.length;i++){
       const cellIdx=(startIdx+i)%item.cells.length;
       const img=await fileToImg(files[i]); if(!img) continue;
       item.cells[cellIdx].img=img; item.cells[cellIdx].scale=1;
       item.cells[cellIdx].panX=0; item.cells[cellIdx].panY=0;
     }
+    // 피커 닫힌 후 iOS가 선택 초기화할 수 있으므로 재선택
+    if(st.collSelected!==item.id) selectCollItem(item.id);
     selectGridCell(item,startIdx);
-    redrawCollGrid(item);
   };
   fi.click();
 }
