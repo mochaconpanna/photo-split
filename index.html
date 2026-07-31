@@ -1720,13 +1720,38 @@ function buildCollGridEl(item){
   el.addEventListener('mousedown',e=>{
     if(e.target.classList.contains('rh')) return;
     if(st.collSelected===item.id){
-      // 그리드 선택 중: 셀 클릭하면 해당 셀 선택
       const idx=hitTestGridCell(item,e.clientX,e.clientY);
-      if(idx>=0){selectGridCell(item,idx);return;}
+      if(idx>=0){
+        selectGridCell(item,idx);
+        // 마우스 드래그로 셀 사진 패닝 (Mac 지원)
+        const cell=item.cells[idx];
+        if(cell&&cell.img){
+          e.preventDefault();
+          const sx=e.clientX,sy=e.clientY,pX=cell.panX||0,pY=cell.panY||0;
+          function mv(me){cell.panX=pX+(me.clientX-sx);cell.panY=pY+(me.clientY-sy);clampGridCellPan(item,idx);redrawCollGrid(item);}
+          function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);}
+          document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+        }
+        return;
+      }
     }
     selectCollItem(item.id);
     startCollDrag(e,item);
   });
+  // 휠/트랙패드 핀치: 셀 사진 확대·이동 (Mac 지원)
+  el.addEventListener('wheel',e=>{
+    e.preventDefault(); e.stopPropagation();
+    if(st.collSelected!==item.id) selectCollItem(item.id);
+    if(st.collGridCell<0) return;
+    const cell=item.cells[st.collGridCell]; if(!cell||!cell.img) return;
+    if(e.ctrlKey){
+      // 트랙패드 핀치 = ctrlKey + deltaY
+      cell.scale=Math.max(1,Math.min(5,(cell.scale||1)-e.deltaY*0.01));
+    } else {
+      cell.panX-=e.deltaX; cell.panY-=e.deltaY;
+    }
+    clampGridCellPan(item,st.collGridCell); redrawCollGrid(item);
+  },{passive:false});
   // 터치 이벤트 (_gMoved: 이동 여부 추적, 탭이면 셀 선택)
   let _gtd=null, _glpSx=0, _glpSy=0, _gMoved=false;
   el.addEventListener('touchstart',e=>{
@@ -1743,7 +1768,11 @@ function buildCollGridEl(item){
       }
       if(st.collGridCell>=0){
         const cell=item.cells[st.collGridCell];
-        _gtd={sx:tx,sy:ty,pX:cell.panX||0,pY:cell.panY||0,mode:'pan'};
+        if(cell&&cell.img){
+          _gtd={sx:tx,sy:ty,pX:cell.panX||0,pY:cell.panY||0,mode:'pan'};
+        } else {
+          _gtd={sx:tx,sy:ty,ox:item.x,oy:item.y,mode:'drag'};
+        }
       } else {
         _gtd={sx:tx,sy:ty,ox:item.x,oy:item.y,mode:'drag'};
       }
@@ -1873,7 +1902,8 @@ function addGridCellPhoto(){
     const file=fi.files[0]; if(!file) return;
     const img=await fileToImg(file); if(!img) return;
     item.cells[idx].img=img; item.cells[idx].scale=1; item.cells[idx].panX=0; item.cells[idx].panY=0;
-    redrawCollGrid(item);
+    if(st.collSelected!==item.id) selectCollItem(item.id);
+    selectGridCell(item,idx);
   };
   fi.click();
 }
@@ -1903,14 +1933,14 @@ function addGridCellPhotoFromBtn(){
 function zoomGridCell(delta){
   const item=st.collItems.find(i=>i.id===st.collSelected); if(!item) return;
   const idx=st.collGridCell; if(idx<0) return;
-  const cell=item.cells[idx]; if(!cell.img) return;
+  const cell=item.cells[idx]; if(!cell.img){showToast('먼저 사진을 추가해주세요');return;}
   cell.scale=Math.max(1,Math.min(5,(cell.scale||1)+delta));
   clampGridCellPan(item,idx); redrawCollGrid(item);
 }
 function rotateGridCell(deg){
   const item=st.collItems.find(i=>i.id===st.collSelected); if(!item) return;
   const idx=st.collGridCell; if(idx<0) return;
-  const cell=item.cells[idx]; if(!cell.img) return;
+  const cell=item.cells[idx]; if(!cell.img){showToast('먼저 사진을 추가해주세요');return;}
   cell.rotation=((cell.rotation||0)+deg+360)%360;
   cell.panX=0; cell.panY=0;
   clampGridCellPan(item,idx); redrawCollGrid(item);
