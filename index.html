@@ -1727,36 +1727,33 @@ function buildCollGridEl(item){
     selectCollItem(item.id);
     startCollDrag(e,item);
   });
-  // 터치 이벤트
-  let _gtd=null, _glpTimer=null, _glpSx=0,_glpSy=0;
+  // 터치 이벤트 (_gMoved: 이동 여부 추적, 탭이면 셀 선택)
+  let _gtd=null, _glpSx=0, _glpSy=0, _gMoved=false;
   el.addEventListener('touchstart',e=>{
     e.stopPropagation();
     if(e.target.classList.contains('rh')) return;
     e.preventDefault();
     if(e.touches.length===1){
-      const tx=e.touches[0].clientX,ty=e.touches[0].clientY;
-      _glpSx=tx; _glpSy=ty;
+      const tx=e.touches[0].clientX, ty=e.touches[0].clientY;
+      _glpSx=tx; _glpSy=ty; _gMoved=false;
       if(st.collSelected!==item.id){
         selectCollItem(item.id);
         _gtd={sx:tx,sy:ty,ox:item.x,oy:item.y,mode:'drag'};
         return;
       }
       if(st.collGridCell>=0){
-        // 셀 편집 모드: 드래그=사진 패닝, 다른 셀 탭=셀 전환
         const cell=item.cells[st.collGridCell];
         _gtd={sx:tx,sy:ty,pX:cell.panX||0,pY:cell.panY||0,mode:'pan'};
       } else {
-        // 그리드 선택 상태: 짧게 탭하면 셀 선택, 드래그하면 이동
-        _gtd={sx:tx,sy:ty,ox:item.x,oy:item.y,mode:'drag',moved:false};
+        _gtd={sx:tx,sy:ty,ox:item.x,oy:item.y,mode:'drag'};
       }
     } else if(e.touches.length===2){
       e.preventDefault();
-      if(_glpTimer){clearTimeout(_glpTimer);_glpTimer=null;}
-      _gtd=null;
+      _gMoved=true; _gtd=null;
       if(st.collGridCell>=0){
         const cell=item.cells[st.collGridCell];
-        _gcit.sDist=pinchDist(e.touches);_gcit.sScale=cell.scale||1;
-        _gcit.spX=cell.panX||0;_gcit.spY=cell.panY||0;_gcit.mode='pinch';
+        _gcit.sDist=pinchDist(e.touches); _gcit.sScale=cell.scale||1;
+        _gcit.spX=cell.panX||0; _gcit.spY=cell.panY||0;
       }
     }
   },{passive:false});
@@ -1764,12 +1761,12 @@ function buildCollGridEl(item){
     e.preventDefault();
     if(e.touches.length===1&&_gtd){
       const dx=e.touches[0].clientX-_gtd.sx, dy=e.touches[0].clientY-_gtd.sy;
+      if(Math.abs(dx)>8||Math.abs(dy)>8) _gMoved=true;
       if(_gtd.mode==='pan'){
         const cell=item.cells[st.collGridCell]; if(!cell) return;
         cell.panX=_gtd.pX+dx; cell.panY=_gtd.pY+dy;
         clampGridCellPan(item,st.collGridCell); redrawCollGrid(item);
       } else {
-        if(Math.abs(dx)>8||Math.abs(dy)>8){if(_gtd) _gtd.moved=true;}
         item.x=Math.max(0,Math.min(st.collStageW-item.w,_gtd.ox+dx));
         item.y=Math.max(0,Math.min(st.collStageH-item.h,_gtd.oy+dy));
         el.style.left=item.x+'px'; el.style.top=item.y+'px';
@@ -1782,14 +1779,14 @@ function buildCollGridEl(item){
     }
   },{passive:false});
   el.addEventListener('touchend',e=>{
-    if(_gtd&&_gtd.mode==='drag'&&!_gtd.moved&&st.collSelected===item.id){
-      // 탭 → 셀 선택
+    // 이동 없는 탭이면 → 탭한 셀 선택 (모드 무관)
+    if(!_gMoved && st.collSelected===item.id){
       const idx=hitTestGridCell(item,_glpSx,_glpSy);
       if(idx>=0) selectGridCell(item,idx);
     }
-    _gtd=null;
+    _gtd=null; _gMoved=false;
   });
-  el.addEventListener('touchcancel',()=>{_gtd=null;});
+  el.addEventListener('touchcancel',()=>{_gtd=null; _gMoved=false;});
   return el;
 }
 const _gcit={};
